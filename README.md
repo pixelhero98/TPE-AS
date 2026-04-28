@@ -53,8 +53,82 @@ python experiments/run_paper_like_grid.py --controller global_local
 | `budget` | The optimization budget is known in advance. | Cosine schedule from near `0` to `1`: `(1 - cos(min(t / budget * pi, pi))) / 2`. |
 | `global_local` | The run may stop at any time. | Uses only completed trajectory history, combining global percentile pressure and recent-window pressure. |
 
+For both branches, `--budget` is the exact number of evaluations to run. The `global_local`
+branch is budget-free only in its lambda calculation; it still stops after `budget` evaluations.
+Both branches return the selected incumbent by adaptive objective through
+`result.best_candidate()`. Do not treat `result.records[-1]` as the selected answer; it is just the
+last sampled point in the trajectory.
+
 The internal `recent` mode remains available through the legacy hidden `--lambda-mode recent` flag
 for experiments and comparisons, but it is not a recommended public branch.
+
+## Use With Your Own Model
+
+The optimizer accepts any `SearchSpace` made from `FloatParam`, `IntParam`, and
+`CategoricalParam`. There is no 10-parameter limit; use as many parameters as your black-box model
+needs. Your evaluator only needs an `evaluate(params, rng)` method that returns one noisy score to
+maximize.
+
+```python
+import numpy as np
+
+from tpeas import (
+    AdaptiveObjectiveConfig,
+    CategoricalParam,
+    CustomTPEASOptimizer,
+    FloatParam,
+    IntParam,
+    SearchSpace,
+    resolve_controller_mode,
+)
+
+
+class MyModelEvaluator:
+    def evaluate(self, params, rng: np.random.Generator) -> float:
+        # Replace this with training, simulation, backtesting, or another black-box call.
+        score = 1.0
+        score -= (params["learning_rate"] - 0.02) ** 2 / 0.01
+        score -= (params["depth"] - 5) ** 2 / 20.0
+        score += {"relu": 0.0, "gelu": 0.1, "tanh": -0.1}[params["activation"]]
+        return float(score + rng.normal(0.0, 0.05))
+
+
+search_space = SearchSpace(
+    [
+        FloatParam("learning_rate", 1e-4, 0.1, log_scale=True),
+        FloatParam("dropout", 0.0, 0.5),
+        FloatParam("l2", 1e-6, 1e-2, log_scale=True),
+        IntParam("depth", 2, 10),
+        IntParam("width", 32, 512),
+        CategoricalParam("activation", ["relu", "gelu", "tanh"]),
+    ]
+)
+
+config = AdaptiveObjectiveConfig(
+    budget=80,
+    epsilon=0.1,
+    startup_trials=12,
+    replicates_per_trial=3,
+    n_candidates=64,
+    lambda_mode=resolve_controller_mode("global_local"),
+)
+
+optimizer = CustomTPEASOptimizer(
+    search_space=search_space,
+    evaluator=MyModelEvaluator(),
+    config=config,
+    seed=0,
+)
+result = optimizer.optimize()
+selected = result.best_candidate()
+
+print(selected.step)
+print(selected.objective)
+print(selected.params)
+```
+
+A fuller runnable example with 13 mixed parameters is available at
+`examples/custom_model_optimization.py`.
 
 ## Tunable Parameters
 
@@ -73,7 +147,7 @@ Budget controller parameter:
 
 | Parameter | CLI flag | Default | Meaning |
 |---|---|---:|---|
-| `budget` | `--budget` | `300` | Planned evaluation count used by the cosine lambda schedule. |
+| `budget` | `--budget` | `300` | Exact number of evaluations to run; also used by the budget controller's cosine lambda schedule. |
 
 Global-local controller parameters:
 
@@ -92,6 +166,9 @@ Global-local controller parameters:
 | `local_controller_weight` | `--local-controller-weight` | `1.0` | Multiplier applied to local pressure. |
 
 ## Run Experiments
+
+The `ten_parameter_*` and `paper_like_*` components are demo benchmarks. They are useful for
+reproducing the repository experiments, but they are not optimizer limitations.
 
 Synthetic comparison:
 
@@ -137,6 +214,8 @@ Experiment outputs are written under `results/` by default. Scenario runners wri
 - optional `.png` plots when `matplotlib` is installed
 
 Trajectory and summary files include both `lambda_mode` and public `controller` metadata.
+Summary files also include `selected_*` fields from `result.best_candidate()`. `final_*` fields are
+trajectory diagnostics for the last sampled point.
 
 ## Project Boundary
 
