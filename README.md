@@ -1,6 +1,6 @@
-# TPE-AS Replication Prototype
+# TPE-AS Official Implementation
 
-This project replicates the optimizer mechanism from:
+This project contains the optimizer mechanism from:
 
 > Zinuo You, John Cartlidge, Karen Elliott, Menghan Ge, and Daniel Gold.
 > "Improving Bayesian Optimization for Portfolio Management with an Adaptive Scheduling."
@@ -8,7 +8,7 @@ This project replicates the optimizer mechanism from:
 
 The paper does not disclose its proprietary portfolio models, backtest settings, or
 hyperparameters. This project therefore reproduces the method mechanics and qualitative
-experiments rather than the paper's exact Sharpe-ratio tables.
+experiments rather than the paper's exact model-performance-to-optimize tables.
 
 ## What Is Implemented
 
