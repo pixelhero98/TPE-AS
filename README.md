@@ -218,5 +218,5 @@ trajectory diagnostics for the last sampled point.
 
 ## Project Boundary
 
-This is a standalone method-replication prototype. It does not require any proprietary financial
+This is a standalone method-replication repo. It does not require any proprietary financial
 models or private local projects.
